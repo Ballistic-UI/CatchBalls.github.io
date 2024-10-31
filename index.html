@@ -3,125 +3,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Catch the Ball Game</title>
+    <title>Tetris</title>
     <style>
-        body { text-align: center; }
-        canvas { background: #f0f0f0; border: 1px solid #333; }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        canvas {
+            border: 1px solid #333;
+            background-color: #222;
+        }
     </style>
 </head>
 <body>
+    <canvas id="gameCanvas" width="300" height="600"></canvas>
+    
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const COLS = 10;
+        const ROWS = 20;
+        const BLOCK_SIZE = 30;
+        let board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+        let currentPiece;
+        let score = 0;
+        let gameOver = false;
 
-<h1>Catch the Ball</h1>
-<canvas id="gameCanvas" width="400" height="600"></canvas>
-<p>Use left and right arrow keys to move the paddle.</p>
+        const pieces = [
+            [[1, 1, 1, 1]],                         // I shape
+            [[1, 1, 0], [0, 1, 1]],                 // Z shape
+            [[0, 1, 1], [1, 1, 0]],                 // S shape
+            [[1, 1, 1], [0, 1, 0]],                 // T shape
+            [[1, 1], [1, 1]],                       // O shape
+            [[1, 1, 1], [1, 0, 0]],                 // L shape
+            [[1, 1, 1], [0, 0, 1]]                  // J shape
+        ];
 
-<script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-
-    // Game settings
-    //
-    const paddleWidth = 80;
-    const paddleHeight = 10;
-    const ballRadius = 10;
-    let paddleX =(canvas.width - paddleWidth) / 2;
-    let ballX = Math.random() * (canvas.width - ballRadius * 2) + ballRadius;
-    let ballY = ballRadius;
-    let ballSpeedY = 2;
-    let score = 0;
-    let isGameOver = false;
-
-    // Paddle movement
-    let rightPressed = false;
-    let leftPressed = false;
-
-    document.addEventListener("keydown", keyDownHandler);
-    document.addEventListener("keyup", keyUpHandler);
-
-    function keyDownHandler(e) {
-        if (e.key === "Right" || e.key === "ArrowRight") {
-            rightPressed = true;
-        } else if (e.key === "Left" || e.key === "ArrowLeft") {
-            leftPressed = true;
-        }
-    }
-
-    function keyUpHandler(e) {
-        if (e.key === "Right" || e.key === "ArrowRight") {
-            rightPressed = false;
-        } else if (e.key === "Left" || e.key === "ArrowLeft") {
-            leftPressed = false;
-        }
-    }
-
-    function drawPaddle() {
-        ctx.beginPath();
-        ctx.rect(paddleX, canvas.height - paddleHeight - 10, paddleWidth, paddleHeight);
-        ctx.fillStyle = "#0095DD";
-        ctx.fill();
-        ctx.closePath();
-    }
-
-    function drawBall() {
-        ctx.beginPath();
-        ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
-        ctx.fillStyle = "#DD0000";
-        ctx.fill();
-        ctx.closePath();
-    }
-
-    function drawScore() {
-        ctx.font = "16px Arial";
-        ctx.fillStyle = "#333";
-        ctx.fillText("Score: " + score, 8, 20);
-    }
-
-    function gameOver() {
-        ctx.font = "30px Arial";
-        ctx.fillStyle = "#333";
-        ctx.fillText("Game Over!", canvas.width / 2 - 80, canvas.height / 2);
-        isGameOver = true;
-    }
-
-    function updateGame() {
-        if (isGameOver) return;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        drawPaddle();
-        drawBall();
-        drawScore();
-
-        // Ball movement
-        ballY += ballSpeedY;
-
-        // Check for paddle collision
-        if (ballY + ballRadius >= canvas.height - paddleHeight - 10 &&
-            ballX >= paddleX && ballX <= paddleX + paddleWidth) {
-            ballY = ballRadius;
-            ballX = Math.random() * (canvas.width - ballRadius * 2) + ballRadius;
-            score++;
-            ballSpeedY += 0.5; // Increase speed each time
+        // Get a random piece
+        function getRandomPiece() {
+            const piece = pieces[Math.floor(Math.random() * pieces.length)];
+            return { shape: piece, row: 0, col: Math.floor(COLS / 2) - 1 };
         }
 
-        // Game over if ball hits the bottom
-        if (ballY + ballRadius > canvas.height) {
-            gameOver();
+        // Draw the board and pieces
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            board.forEach((row, r) => row.forEach((cell, c) => {
+                if (cell) drawBlock(c, r, 'blue');
+            }));
+            if (currentPiece) {
+                currentPiece.shape.forEach((row, r) => row.forEach((cell, c) => {
+                    if (cell) drawBlock(currentPiece.col + c, currentPiece.row + r, 'red');
+                }));
+            }
         }
 
-        // Paddle movement
-        if (rightPressed && paddleX < canvas.width - paddleWidth) {
-            paddleX += 10;
-        } else if (leftPressed && paddleX > 0) {
-            paddleX -= 10;
+        function drawBlock(x, y, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
         }
 
-        requestAnimationFrame(updateGame);
-    }
+        // Rotate the piece clockwise
+        function rotate(piece) {
+            const newShape = piece.shape[0].map((_, i) => piece.shape.map(row => row[i]).reverse());
+            return { ...piece, shape: newShape };
+        }
 
-    updateGame();
-</script>
+        // Check if the move is valid
+        function isValidMove(piece, rowOffset = 0, colOffset = 0) {
+            return piece.shape.every((r, y) => r.every((cell, x) => {
+                const newY = piece.row + y + rowOffset;
+                const newX = piece.col + x + colOffset;
+                return cell === 0 ||
+                    (newY >= 0 && newY < ROWS && newX >= 0 && newX < COLS && !board[newY][newX]);
+            }));
+        }
 
+        // Merge the piece into the board
+        function placePiece() {
+            currentPiece.shape.forEach((row, r) => row.forEach((cell, c) => {
+                if (cell) board[currentPiece.row + r][currentPiece.col + c] = cell;
+            }));
+        }
+
+        // Clear filled lines
+        function clearLines() {
+            board = board.reduce((acc, row) => {
+                if (row.every(cell => cell)) {
+                    score += 10;
+                    acc.unshift(Array(COLS).fill(0));
+                } else acc.push(row);
+                return acc;
+            }, []);
+        }
+
+        // Game loop
+        function gameLoop() {
+            if (!gameOver) {
+                if (isValidMove(currentPiece, 1)) {
+                    currentPiece.row++;
+                } else {
+                    placePiece();
+                    clearLines();
+                    currentPiece = getRandomPiece();
+                    if (!isValidMove(currentPiece)) {
+                        gameOver = true;
+                        alert(`Game Over! Score: ${score}`);
+                    }
+                }
+                drawBoard();
+                setTimeout(gameLoop, 500);
+            }
+        }
+
+        // Key event listeners for controls
+        document.addEventListener('keydown', (e) => {
+            if (gameOver) return;
+            switch (e.key) {
+                case 'ArrowLeft':
+                    if (isValidMove(currentPiece, 0, -1)) currentPiece.col--;
+                    break;
+                case 'ArrowRight':
+                    if (isValidMove(currentPiece, 0, 1)) currentPiece.col++;
+                    break;
+                case 'ArrowDown':
+                    if (isValidMove(currentPiece, 1)) currentPiece.row++;
+                    break;
+                case 'ArrowUp':
+                    const rotated = rotate(currentPiece);
+                    if (isValidMove(rotated)) currentPiece = rotated;
+                    break;
+            }
+            drawBoard();
+        });
+
+        // Start the game
+        currentPiece = getRandomPiece();
+        gameLoop();
+    </script>
 </body>
 </html>
+
 
